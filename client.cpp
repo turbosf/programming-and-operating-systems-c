@@ -3,13 +3,25 @@
 #include <cstring>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 using namespace std;
 
-//XOR Encryption/Decryption
 string xor_crypt(string data) {
     for (char &c : data) c ^= 'X';
     return data;
+}
+
+void* receive_messages(void* arg) {
+    int sock = *(int*)arg;
+    char buffer[1024] = {0};
+    while (true) {
+        memset(buffer, 0, 1024);
+        if (read(sock, buffer, 1024) <= 0) break;
+        cout << "\nServer reply: " << xor_crypt(buffer) << "\n> ";
+        fflush(stdout);
+    }
+    return NULL;
 }
 
 int main() {
@@ -22,8 +34,9 @@ int main() {
 
     connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 
-    //Handshake Send PSK
-    string psk = "faridkey";
+    string psk;
+    cout << "Enter key: ";
+    getline(cin, psk);
     send(sock, psk.c_str(), psk.length(), 0);
     
     char buffer[1024] = {0};
@@ -35,7 +48,9 @@ int main() {
     }
     cout << "Connected securely.\n";
 
-    //Secure Communication Loop
+    pthread_t recv_thread;
+    pthread_create(&recv_thread, NULL, receive_messages, (void*)&sock);
+
     string input;
     while (true) {
         cout << "> ";

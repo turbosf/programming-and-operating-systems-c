@@ -3,13 +3,50 @@
 #include <cstring>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+#include <fstream>
 
 using namespace std;
 
-//XOR Encryption/Decryption
 string xor_crypt(string data) {
     for (char &c : data) c ^= 'X';
     return data;
+}
+
+void* handle_client(void* arg) {
+    int client_socket = *(int*)arg;
+    char buffer[1024] = {0};
+    read(client_socket, buffer, 1024);
+
+    bool auth = false;
+    ifstream file("users.txt");
+    string line;
+    while(getline(file, line)) {
+        if(line == string(buffer)) auth = true;
+    }
+
+    if (!auth) {
+        cout << "Authentication failed.\n";
+        close(client_socket);
+        return NULL;
+    }
+    
+    send(client_socket, "OK", 2, 0);
+    cout << "Client authenticated.\n";
+
+    while (true) {
+        memset(buffer, 0, 1024);
+        if (read(client_socket, buffer, 1024) <= 0) break;
+        
+        cout << "Encrypted received: " << buffer << "\n";
+        cout << "Decrypted message: " << xor_crypt(buffer) << "\n";
+        
+        string reply = xor_crypt("Message received");
+        send(client_socket, reply.c_str(), reply.length(), 0);
+    }
+
+    close(client_socket);
+    return NULL;
 }
 
 int main() {
@@ -23,33 +60,17 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
 
     bind(server_fd, (struct sockaddr*)&address, sizeof(address));
-    listen(server_fd, 3);
+    listen(server_fd, 10);
     
     cout << "Listening on port 8080...\n";
-    int client_socket = accept(server_fd, nullptr, nullptr);
 
-    char buffer[1024] = {0};
-    read(client_socket, buffer, 1024);
-
-    //Check PSK
-    if (string(buffer) != "faridkey") {
-        cout << "Authentication failed.\n";
-        return 1;
-    }
-    
-    send(client_socket, "OK", 2, 0);
-    cout << "Client authenticated.\n";
-
-    //Secure Communication Loop
     while (true) {
-        memset(buffer, 0, 1024);
-        if (read(client_socket, buffer, 1024) <= 0) break;
-        
-        cout << "Encrypted received: " << buffer << "\n";
-        cout << "Decrypted message: " << xor_crypt(buffer) << "\n";
+        int client_socket = accept(server_fd, nullptr, nullptr);
+        pthread_t thread_id;
+        int* new_sock = new int(client_socket);
+        pthread_create(&thread_id, NULL, handle_client, (void*)new_sock);
     }
 
-    close(client_socket);
     close(server_fd);
     return 0;
 }
