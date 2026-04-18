@@ -14,11 +14,11 @@ string xor_crypt(string data) {
 
 void* receive_messages(void* arg) {
     int sock = *(int*)arg;
-    char buffer[1024] = {0};
+    char buffer[2048] = {0}; 
     while (true) {
-        memset(buffer, 0, 1024);
-        if (read(sock, buffer, 1024) <= 0) break;
-        cout << "\nServer reply: " << xor_crypt(buffer) << "\n> ";
+        memset(buffer, 0, 2048);
+        if (read(sock, buffer, 2048) <= 0) break;
+        cout << "\nServer reply:\n" << xor_crypt(buffer) << "\n> ";
         fflush(stdout);
     }
     return NULL;
